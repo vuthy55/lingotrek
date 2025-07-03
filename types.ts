@@ -1,4 +1,4 @@
-export type LanguageCode = 'ZH' | 'EN' | 'ID' | 'KM' | 'LO' | 'MY' | 'TH' | 'VI' | 'FR' | 'ES';
+export type LanguageCode = 'ZH' | 'EN' | 'ID' | 'KM' | 'LO' | 'MY' | 'TH' | 'VI' | 'FR' | 'ES' | 'TA' | 'AR' | 'HI' | 'IT';
 
 export interface Language {
   code: LanguageCode;
@@ -10,7 +10,7 @@ export interface Language {
 
 export interface User {
   email: string;
-  name: string;
+  name:string;
   mobile: string;
   country: string;
 }
@@ -44,6 +44,30 @@ export interface LearntPhrase {
   isCorrect: boolean | null;
 }
 
+export interface EmergencyContact {
+  id: number;
+  name: string;
+  phone: string;
+}
+
+export interface OtherNumber {
+    id: number;
+    name: string;
+    phone: string;
+}
+
+export interface CountryInfo {
+    police: string;
+    ambulance: string;
+    fire: string;
+    embassyInfo: string;
+}
+
+export interface NewsItem {
+    headline: string;
+    summary: string;
+}
+
 export interface AppContextType {
   fromLang: LanguageCode;
   toLang: LanguageCode;
@@ -58,4 +82,8 @@ export interface AppContextType {
   learntPhrases: LearntPhrase[];
   addLearntPhrase: (phrase: LearntPhrase) => void;
   updateLearntPhrase: (phrase: Word, fromLangCode: LanguageCode, toLangCode: LanguageCode, isCorrect: boolean) => void;
+  emergencyContacts: EmergencyContact[];
+  setEmergencyContacts: (contacts: EmergencyContact[]) => void;
+  otherNumbers: OtherNumber[];
+  setOtherNumbers: (numbers: OtherNumber[]) => void;
 }
