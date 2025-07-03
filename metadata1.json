@@ -1,0 +1,8 @@
+{
+  "name": "LingoTrek",
+  "description": "A language learning app for backpackers, designed to help you learn essential vocabulary and phrases for your travels. Includes a translator, progress tracking, and critical safety features like emergency numbers and contacts to ensure you travel with confidence.",
+  "requestFramePermissions": [
+    "microphone"
+  ],
+  "prompt": ""
+}
