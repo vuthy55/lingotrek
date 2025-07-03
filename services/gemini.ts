@@ -1,4 +1,5 @@
-import { GoogleGenAI } from "@google/genai";
+
+import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { LANGUAGES } from '../constants';
 import type { LanguageCode, Word, CountryInfo, NewsItem } from '../types';
 
@@ -132,7 +133,7 @@ export const generateCombinedPhrase = async (words: Word[], langCode: LanguageCo
         const langName = LANGUAGES[langCode].name;
         const nativeWords = words.map(w => w[langCode]);
         
-        const prompt = `You are a language learning assistant. Create a single, simple, coherent travel-related sentence in ${langName} that uses several of the following words: "${nativeWords.join(', ')}". Then provide the exact English translation of that sentence. Return ONLY a JSON object with keys "native" and "english". Example: {"native": "...", "english": "..."}.`;
+        const prompt = `You are a language learning assistant. Create a single, simple, coherent travel-related sentence in ${langName} that uses several of the following words: "${nativeWords.join(', ')}". Then provide the exact English translation of that sentence. Return ONLY a JSON object with keys "native" and "english", without any markdown formatting. Example: {"native": "...", "english": "..."}.`;
         
         const response = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-04-17",
@@ -193,18 +194,20 @@ export const getEmergencyInfo = async (countryName: string): Promise<CountryInfo
     }
 };
 
-export const getNews = async (countryName: string): Promise<NewsItem[] | null> => {
-     if (!process.env.API_KEY) {
-        return [{headline: 'Mock News Headline', summary: 'This is a mock news summary because the API key is missing.'}];
+export const getNews = async (countryName: string): Promise<{ news: NewsItem[], sources: any[] } | null> => {
+    if (!process.env.API_KEY) {
+        return { news: [{ headline: 'Mock News Headline', summary: 'This is a mock news summary because the API key is missing.' }], sources: [] };
     }
+    
+    let response: GenerateContentResponse;
     try {
-        const prompt = `Provide 3 recent top news headlines and a brief one-sentence summary for each in ${countryName}. Return ONLY a JSON array of objects, where each object has "headline" and "summary" keys. If there is no specific news, return an empty array.`;
+        const prompt = `Provide 3 recent top news headlines and a brief one-sentence summary for each in ${countryName}, focusing on topics relevant to tourists like crime rates, safety alerts, major events, or travel advisories. Return ONLY a JSON array of objects, where each object has "headline" and "summary" keys. If there is no specific news, return an empty array.`;
         
-        const response = await ai.models.generateContent({
+        response = await ai.models.generateContent({
             model: "gemini-2.5-flash-preview-04-17",
             contents: prompt,
             config: {
-                 responseMimeType: "application/json",
+                tools: [{ googleSearch: {} }],
             },
         });
 
@@ -215,9 +218,26 @@ export const getNews = async (countryName: string): Promise<NewsItem[] | null> =
             jsonStr = match[2].trim();
         }
         
-        return JSON.parse(jsonStr);
+        const news = JSON.parse(jsonStr);
+        const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+        
+        // Ensure news is an array
+        if (Array.isArray(news)) {
+            return { news, sources };
+        } else {
+             throw new Error("Parsed news is not an array");
+        }
+
     } catch (error) {
-        console.error("Error getting news:", error);
+        console.error("Error getting or parsing news as JSON:", error);
+        // Fallback: If JSON parsing fails, treat the entire text response as a summary.
+        if (response && response.text) {
+             const sources = response.candidates?.[0]?.groundingMetadata?.groundingChunks ?? [];
+             return {
+                 news: [{ headline: 'Safety News Summary', summary: response.text }],
+                 sources
+             };
+        }
         return null;
     }
 };
