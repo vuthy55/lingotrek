@@ -1,10 +1,8 @@
-
-
 import React, { useState, useEffect, useCallback, createContext, useContext, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
-import type { Language, LanguageCode, User, Word, LearntWord, LearntPhrase, Payment, AppContextType } from './types';
+import type { Language, LanguageCode, User, Word, LearntWord, LearntPhrase, Payment, AppContextType, EmergencyContact, OtherNumber, CountryInfo, NewsItem } from './types';
 import { LANGUAGES, VOCABULARY_DATA, ADMIN_EMAIL } from './constants';
-import { translateText, generatePhrase, getPhonetics, generateCombinedPhrase } from './services/gemini';
+import { translateText, generatePhrase, getPhonetics, generateCombinedPhrase, getEmergencyInfo, getNews } from './services/gemini';
 
 // --- ICONS (as components) ---
 const LogoIcon = () => (
@@ -24,6 +22,10 @@ const ChevronDownIcon = ({ className }: { className?: string }) => <svg xmlns="h
 const RunningIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" /></svg>;
 const BookIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>;
 const StackedBooksIcon = () => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8"><path strokeLinecap="round" strokeLinejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 7.5l-3.75-2.25L9 7.5m0 0l-3.75 2.25M9 7.5v9l3.75 2.25M15 7.5v9l-3.75 2.25m0 0V9.75" /></svg>;
+const SafetyIcon = ({className}: {className?: string}) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}><path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75m-3-7.036A11.959 11.959 0 013.598 6 11.99 11.99 0 003 9.749c0 5.592 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.286zm0 13.036h.008v.008h-.008v-.008z" /></svg>;
+const TelephoneIcon = ({className}: {className?: string}) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}><path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75c0 8.284 6.716 15 15 15h2.25a2.25 2.25 0 002.25-2.25v-1.372c0-.516-.351-.966-.852-1.091l-4.423-1.106c-.44-.11-.902.055-1.173.417l-.97 1.293c-.282.376-.769.542-1.21.38a12.035 12.035 0 01-7.143-7.143c-.162-.441.004-.928.38-1.21l1.293-.97c.363-.271.527-.734.417-1.173L6.963 3.102a1.125 1.125 0 00-1.091-.852H4.5A2.25 2.25 0 002.25 6.75z" /></svg>;
+const ProfileIcon = ({className}: {className?: string}) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 ${className}`}><path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6a3.75 3.75 0 11-7.5 0 3.75 3.75 0 017.5 0zM4.501 20.118a7.5 7.5 0 0114.998 0A17.933 17.933 0 0112 21.75c-2.676 0-5.216-.584-7.499-1.632z" /></svg>;
+const TranslateIcon = ({className}: {className?: string}) => <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-8 h-8 ${className}`}><path d="M2.25 12a8.954 8.954 0 018.954-8.954 8.954 8.954 0 018.954 8.954c0 4.341-3.086 7.954-7.046 8.797a.75.75 0 01-.518-1.412A7.454 7.454 0 0019.25 12c0-4.133-3.367-7.454-7.454-7.454S4.341 7.867 4.341 12c0 1.95.756 3.734 2 5.093a.75.75 0 11-1.129 1.001A8.909 8.909 0 012.25 12z" stroke="currentColor" /><path d="M8.25 10.875a2.625 2.625 0 100 5.25 2.625 2.625 0 000-5.25zM15.75 10.875a2.625 2.625 0 100 5.25 2.625 2.625 0 000-5.25z" stroke="currentColor" /><path d="M12 2.25v-.844a.75.75 0 01.75.75H12a.75.75 0 01-.75-.75V1.5m0 21v.844a.75.75 0 00.75-.75H12a.75.75 0 00-.75.75v.75m8.25-10.5h.844a.75.75 0 00-.75-.75V12c0 .414.336.75.75.75h.094m-16.5 0H3.75a.75.75 0 00.75-.75V12c0-.414-.336-.75-.75-.75H3" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 
 // --- CONTEXT ---
 const AppContext = createContext<AppContextType | null>(null);
@@ -36,7 +38,7 @@ const useAppContext = () => {
 
 const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [fromLang, setFromLang] = useState<LanguageCode>('EN');
-  const [toLang, setToLang] = useState<LanguageCode>('TH');
+  const [toLang, setToLang] = useState<LanguageCode>('KM');
   const [user, setUser] = useState<User | null>(() => {
     try {
         const savedUser = localStorage.getItem('lingotrek-user');
@@ -61,6 +63,30 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
         return [];
     }
   });
+
+  const [emergencyContacts, setEmergencyContacts] = useState<EmergencyContact[]>(() => {
+    try {
+        const saved = localStorage.getItem('lingotrek-emergency-contacts');
+        return saved ? JSON.parse(saved) : [{id: 1, name: '', phone: ''}, {id: 2, name: '', phone: ''}, {id: 3, name: '', phone: ''}];
+    } catch(e) { return []; }
+  });
+
+  const [otherNumbers, setOtherNumbers] = useState<OtherNumber[]>(() => {
+      try {
+          const saved = localStorage.getItem('lingotrek-other-numbers');
+          return saved ? JSON.parse(saved) : Array.from({length: 5}, (_, i) => ({id: i + 1, name: '', phone: ''}));
+      } catch (e) { return []; }
+  });
+
+  const handleSetEmergencyContacts = (contacts: EmergencyContact[]) => {
+      setEmergencyContacts(contacts);
+      localStorage.setItem('lingotrek-emergency-contacts', JSON.stringify(contacts));
+  };
+  
+  const handleSetOtherNumbers = (numbers: OtherNumber[]) => {
+        setOtherNumbers(numbers);
+        localStorage.setItem('lingotrek-other-numbers', JSON.stringify(numbers));
+  };
 
   useEffect(() => {
     try {
@@ -140,6 +166,8 @@ const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
     user, login, logout,
     learntWords, addLearntWords, updateLearntWord,
     learntPhrases, addLearntPhrase, updateLearntPhrase,
+    emergencyContacts, setEmergencyContacts: handleSetEmergencyContacts,
+    otherNumbers, setOtherNumbers: handleSetOtherNumbers,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
@@ -207,6 +235,8 @@ const useSpeech = () => {
   return { isListening, transcript, listen, setTranscript };
 };
 
+const ASEAN_LANG_CODES_NO_TTS: LanguageCode[] = ['ID', 'KM', 'LO', 'MY', 'TH', 'VI'];
+
 const useTextToSpeech = () => {
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
@@ -245,10 +275,22 @@ const useTextToSpeech = () => {
         return voice || null;
     }, [voices]);
 
-    const isVoiceAvailable = useCallback((lang: string) => !!findVoice(lang), [findVoice]);
+    const isVoiceAvailable = useCallback((lang: string) => {
+        const langCode = Object.values(LANGUAGES).find(l => l.speechLang === lang)?.code;
+        if (langCode && ASEAN_LANG_CODES_NO_TTS.includes(langCode)) {
+            return false;
+        }
+        return !!findVoice(lang);
+    }, [findVoice]);
 
     const speakWithVoice = useCallback((text: string, lang: string) => {
         if (!text || typeof window.speechSynthesis === 'undefined') return null;
+        
+        const langCode = Object.values(LANGUAGES).find(l => l.speechLang === lang)?.code;
+        if (langCode && ASEAN_LANG_CODES_NO_TTS.includes(langCode)) {
+             console.warn(`Speech synthesis is disabled for ${lang}`);
+            return null;
+        }
 
         const utterance = new SpeechSynthesisUtterance(text);
         const voice = findVoice(lang);
@@ -316,7 +358,7 @@ const PageLayout: React.FC<{ title: string; children: React.ReactNode; showContr
     const handleBack = onBack || (() => navigate(-1));
     
     return (
-        <div className="min-h-screen bg-brand-darker p-4 sm:p-6 lg:p-8 flex flex-col animate-fade-in">
+        <div className="min-h-screen bg-brand-darker p-4 sm:p-6 lg:p-8 flex flex-col animate-fade-in pb-24">
             {showControls && (
                 <header className="flex justify-between items-center mb-6">
                     <button onClick={handleBack} className="p-2 rounded-full hover:bg-brand-dark"><BackIcon /></button>
@@ -336,9 +378,12 @@ const FlagButton: React.FC<{ lang: Language; onClick: () => void; isSelected?: b
     </button>
 );
 
-const ActionButton: React.FC<{ to: string; label: string }> = ({ to, label }) => (
-    <Link to={to} className="w-full text-center bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl transition-transform duration-200 hover:scale-105 shadow-lg">
-        {label}
+const ActionButton: React.FC<{ to: string; label: string, icon: React.ReactNode }> = ({ to, label, icon }) => (
+    <Link to={to} className="w-full text-left p-6 bg-brand-dark rounded-xl hover:bg-brand-primary/20 transition-colors duration-200 flex items-center justify-between">
+        <div>
+            <h3 className="text-xl font-bold">{label}</h3>
+        </div>
+        {icon}
     </Link>
 );
 
@@ -411,6 +456,49 @@ const PracticeItem: React.FC<{
     );
 }
 
+const BottomNavBar = () => {
+    const { emergencyContacts } = useAppContext();
+    const navigate = useNavigate();
+
+    const handleEmergencyCall = () => {
+        const firstContact = emergencyContacts.find(c => c.phone.trim() !== '');
+        if (firstContact) {
+            if (window.confirm(`This will call your emergency contact: ${firstContact.name} (${firstContact.phone}). Do you want to proceed?`)) {
+                window.location.href = `tel:${firstContact.phone}`;
+            }
+        } else {
+            if (window.confirm('You have no emergency contacts set up. Go to the Safety page to add one?')) {
+                navigate('/safety');
+            }
+        }
+    };
+    
+    const navItems = [
+        { path: '/safety', label: 'Safety', icon: <SafetyIcon /> },
+        { path: '/profile', label: 'Profile', icon: <ProfileIcon /> },
+    ];
+
+    return (
+        <div className="fixed bottom-0 left-0 right-0 bg-brand-darker border-t border-slate-700 z-30">
+            <div className="flex justify-around items-center h-16">
+                 {navItems.map(item => (
+                    <Link key={item.path} to={item.path} className="flex flex-col items-center justify-center text-brand-muted hover:text-brand-primary w-20">
+                        {item.icon}
+                        <span className="text-xs mt-1">{item.label}</span>
+                    </Link>
+                ))}
+                 <button onClick={handleEmergencyCall} className="flex flex-col items-center justify-center text-red-500 hover:text-red-400 w-24 text-center">
+                    <div className="relative">
+                        <TelephoneIcon className="h-7 w-7"/>
+                        <div className="absolute top-0 right-0 -mr-1 -mt-1 w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
+                    </div>
+                    <span className="text-xs mt-1">Call ICE</span>
+                 </button>
+            </div>
+        </div>
+    );
+};
+
 // --- PAGES / MAIN COMPONENTS ---
 const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }) => {
     const { user } = useAppContext();
@@ -442,6 +530,7 @@ const MainPage = () => {
     );
 
     return (
+        <>
         <PageLayout title="" showControls={false}>
             <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
                 <header className="flex items-center space-x-3 mb-8">
@@ -463,16 +552,17 @@ const MainPage = () => {
                     </div>
                 </div>
 
-                <nav className="w-full max-w-sm grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <ActionButton to="/learn" label="Learn" />
-                    <ActionButton to="/translate" label="Translate" />
-                    <Link to="/profile" className="w-full text-center bg-brand-dark hover:bg-brand-primary/20 text-white font-bold py-3 px-4 rounded-xl transition-colors duration-200 shadow-lg">Profile</Link>
+                <nav className="w-full max-w-sm grid grid-cols-1 gap-4">
+                    <ActionButton to="/learn" label="Learn" icon={<RunningIcon />} />
+                    <ActionButton to="/translate" label="Translate" icon={<TranslateIcon />} />
                 </nav>
 
                 {showFromModal && <LanguageModal onSelect={setFromLang} onClose={() => setShowFromModal(false)} />}
                 {showToModal && <LanguageModal onSelect={setToLang} onClose={() => setShowToModal(false)} />}
             </div>
         </PageLayout>
+        <BottomNavBar />
+        </>
     );
 };
 
@@ -631,7 +721,7 @@ const VocabularyPage: React.FC<{onBack: () => void}> = ({onBack}) => {
             setTimeout(() => {
                 setShowCongrats(false);
                 fetchNewBatch();
-            }, 4000);
+            }, 5000);
         }
     }, [learntInBatch, wordBatch, fetchNewBatch]);
 
@@ -823,7 +913,7 @@ const TranslatePage = () => {
             return;
         }
         const debounce = setTimeout(() => {
-            handleTranslate(bottomText, toLang, fromLang, setTopText, false);
+            handleTranslate(bottomText, toLang, fromLang, setTopText, true);
         }, 1000);
         return () => clearTimeout(debounce);
     }, [bottomText, fromLang, toLang, handleTranslate, activeInput]);
@@ -865,7 +955,7 @@ const TranslatePage = () => {
 
     return (
         <PageLayout title="Translate">
-            <div className="flex flex-col space-y-4 h-[calc(100vh-150px)]">
+            <div className="flex flex-col space-y-4 h-[calc(100vh-200px)]">
                 <TranslationCard
                     langCode={fromLang}
                     text={topText}
@@ -1146,7 +1236,7 @@ const ProfilePage = () => {
 
     if (!user) {
         return (
-            <PageLayout title="Register" showControls={false}>
+            <PageLayout title="Register" showControls={true}>
                 <div className="flex flex-col items-center justify-center min-h-screen">
                     <header className="flex items-center space-x-3 mb-8">
                         <LogoIcon />
@@ -1250,6 +1340,14 @@ const DictionaryPage = () => {
     const [isLoading, setIsLoading] = useState(false);
     
     const { speak, isVoiceAvailable } = useTextToSpeech();
+    const { isListening, transcript, listen, setTranscript } = useSpeech();
+
+    useEffect(() => {
+        if (transcript) {
+            setSearchTerm(transcript);
+            setTranscript('');
+        }
+    }, [transcript, setTranscript]);
 
     useEffect(() => {
         if (!searchTerm.trim()) {
@@ -1295,10 +1393,15 @@ const DictionaryPage = () => {
                     value={searchTerm}
                     onChange={e => setSearchTerm(e.target.value)}
                     placeholder={`Search in ${LANGUAGES[fromLang].name} or ${LANGUAGES[toLang].name}`}
-                    className="w-full p-4 pl-10 bg-brand-dark rounded-xl focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                    className="w-full p-4 pl-10 pr-20 bg-brand-dark rounded-xl focus:ring-2 focus:ring-brand-primary focus:outline-none"
                 />
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-brand-muted"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
+                </div>
+                 <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
+                    <button onClick={() => listen(LANGUAGES[fromLang].speechLang)} className={`p-2 rounded-full ${isListening ? 'bg-red-500/50 animate-pulse' : 'hover:bg-brand-primary/20'}`}>
+                        <MicIcon />
+                    </button>
                 </div>
             </div>
             <div className="space-y-3 mt-6">
@@ -1323,6 +1426,160 @@ const DictionaryPage = () => {
     );
 };
 
+const SafetyPage = () => {
+    type Country = { name: { common: string }, cca2: string };
+    const { emergencyContacts, setEmergencyContacts, otherNumbers, setOtherNumbers } = useAppContext();
+    
+    const [countries, setCountries] = useState<Country[]>([]);
+    const [searchTerm, setSearchTerm] = useState('');
+    const [selectedCountry, setSelectedCountry] = useState<Country | null>(null);
+    const [activeTab, setActiveTab] = useState<'emergency' | 'news'>('emergency');
+    
+    const [emergencyInfo, setEmergencyInfo] = useState<CountryInfo | null>(null);
+    const [news, setNews] = useState<NewsItem[] | null>(null);
+    const [isLoading, setIsLoading] = useState(false);
+
+    useEffect(() => {
+        fetch('https://restcountries.com/v3.1/all?fields=name,cca2')
+            .then(res => res.json())
+            .then((data: Country[]) => {
+                data.sort((a,b) => a.name.common.localeCompare(b.name.common));
+                setCountries(data);
+            })
+            .catch(err => console.error("Failed to fetch countries", err));
+    }, []);
+
+    useEffect(() => {
+        if (!selectedCountry) return;
+        
+        const fetchInfo = async () => {
+            setIsLoading(true);
+            setEmergencyInfo(null);
+            setNews(null);
+            
+            const [info, newsItems] = await Promise.all([
+                getEmergencyInfo(selectedCountry.name.common),
+                getNews(selectedCountry.name.common)
+            ]);
+
+            setEmergencyInfo(info);
+            setNews(newsItems);
+            setIsLoading(false);
+        };
+        fetchInfo();
+    }, [selectedCountry]);
+    
+    const filteredCountries = useMemo(() => {
+        if (!searchTerm) return countries.slice(0, 15); // Show first 15 by default
+        return countries.filter(c => c.name.common.toLowerCase().includes(searchTerm.toLowerCase()));
+    }, [searchTerm, countries]);
+    
+    const handleSaveContacts = () => {
+        setEmergencyContacts([...emergencyContacts]); // Uses setter from context which also saves
+        setOtherNumbers([...otherNumbers]); // Uses setter from context which also saves
+        alert('Your safety numbers have been saved!');
+    };
+
+    return (
+        <PageLayout title="Travel Safety">
+            <div className="space-y-6">
+                 <div>
+                    <h3 className="text-lg font-bold mb-2">Select a Country</h3>
+                     <input 
+                        type="text" 
+                        value={searchTerm}
+                        onChange={e => { setSearchTerm(e.target.value); setSelectedCountry(null); }}
+                        placeholder="Search for a country..."
+                        className="w-full p-3 bg-brand-dark rounded-lg focus:ring-2 focus:ring-brand-primary focus:outline-none"
+                    />
+                </div>
+                
+                {!selectedCountry && (
+                    <div className="max-h-60 overflow-y-auto space-y-1 pr-2">
+                        {filteredCountries.map(c => (
+                            <button key={c.cca2} onClick={() => { setSelectedCountry(c); setSearchTerm(c.name.common); }} className="w-full text-left p-3 bg-brand-dark hover:bg-brand-primary/20 rounded-lg transition-colors">
+                                {c.name.common}
+                            </button>
+                        ))}
+                    </div>
+                )}
+                
+                {selectedCountry && (
+                    <div className="bg-brand-dark p-4 rounded-xl flex justify-between items-center">
+                        <h2 className="text-2xl font-bold">{selectedCountry.name.common}</h2>
+                        <button onClick={() => { setSelectedCountry(null); setSearchTerm(''); }} className="text-sm text-brand-accent hover:underline">Change</button>
+                    </div>
+                )}
+
+                {isLoading && (
+                     <div className="flex justify-center items-center py-10">
+                        <div className="w-8 h-8 border-4 border-brand-primary border-t-transparent rounded-full animate-spin"></div>
+                     </div>
+                )}
+
+                {selectedCountry && !isLoading && (
+                    <div>
+                        <div className="flex border-b border-slate-600 mb-4">
+                            <button onClick={() => setActiveTab('emergency')} className={`py-2 px-4 font-semibold ${activeTab === 'emergency' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-brand-muted'}`}>Emergency</button>
+                            <button onClick={() => setActiveTab('news')} className={`py-2 px-4 font-semibold ${activeTab === 'news' ? 'text-brand-primary border-b-2 border-brand-primary' : 'text-brand-muted'}`}>News</button>
+                        </div>
+
+                        {activeTab === 'emergency' && (
+                            <div className="space-y-6 animate-fade-in">
+                                {emergencyInfo && (
+                                     <div className="bg-brand-dark p-4 rounded-xl">
+                                         <h3 className="text-lg font-bold mb-3">Official Numbers</h3>
+                                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                             <a href={`tel:${emergencyInfo.police}`} className="block text-center p-3 bg-slate-900 rounded-lg hover:bg-slate-800"><span className="font-bold text-lg">{emergencyInfo.police}</span><br/><span className="text-sm text-brand-muted">Police</span></a>
+                                             <a href={`tel:${emergencyInfo.ambulance}`} className="block text-center p-3 bg-slate-900 rounded-lg hover:bg-slate-800"><span className="font-bold text-lg">{emergencyInfo.ambulance}</span><br/><span className="text-sm text-brand-muted">Ambulance</span></a>
+                                             <a href={`tel:${emergencyInfo.fire}`} className="block text-center p-3 bg-slate-900 rounded-lg hover:bg-slate-800"><span className="font-bold text-lg">{emergencyInfo.fire}</span><br/><span className="text-sm text-brand-muted">Fire Dept.</span></a>
+                                         </div>
+                                         <p className="text-sm text-brand-muted mt-4">{emergencyInfo.embassyInfo}</p>
+                                    </div>
+                                )}
+                                
+                                <div className="bg-brand-dark p-4 rounded-xl space-y-4">
+                                    <h3 className="text-lg font-bold">Your Emergency Contacts</h3>
+                                    {emergencyContacts.map((c, i) => (
+                                        <div key={c.id} className="grid grid-cols-5 gap-2 items-center">
+                                            <input type="text" placeholder={`Contact ${i+1}`} value={c.name} onChange={e => { emergencyContacts[i].name = e.target.value; setEmergencyContacts([...emergencyContacts]); }} className="col-span-2 p-2 bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary" />
+                                            <input type="tel" placeholder="Phone Number" value={c.phone} onChange={e => { emergencyContacts[i].phone = e.target.value; setEmergencyContacts([...emergencyContacts]); }} className="col-span-3 p-2 bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary" />
+                                        </div>
+                                    ))}
+                                </div>
+                                
+                                <div className="bg-brand-dark p-4 rounded-xl space-y-4">
+                                    <h3 className="text-lg font-bold">Other Useful Numbers</h3>
+                                    {otherNumbers.map((n, i) => (
+                                         <div key={n.id} className="grid grid-cols-5 gap-2 items-center">
+                                            <input type="text" placeholder={`Number ${i+1}`} value={n.name} onChange={e => { otherNumbers[i].name = e.target.value; setOtherNumbers([...otherNumbers]); }} className="col-span-2 p-2 bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary" />
+                                            <input type="tel" placeholder="Phone Number" value={n.phone} onChange={e => { otherNumbers[i].phone = e.target.value; setOtherNumbers([...otherNumbers]); }} className="col-span-3 p-2 bg-slate-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-brand-primary" />
+                                        </div>
+                                    ))}
+                                </div>
+                                <button onClick={handleSaveContacts} className="w-full bg-brand-primary hover:bg-brand-secondary text-white font-bold py-3 px-4 rounded-xl">Save My Numbers</button>
+                            </div>
+                        )}
+                        
+                         {activeTab === 'news' && (
+                             <div className="space-y-4 animate-fade-in">
+                                {news && news.length > 0 ? news.map((item, i) => (
+                                    <div key={i} className="bg-brand-dark p-4 rounded-xl">
+                                        <h4 className="font-bold text-brand-light">{item.headline}</h4>
+                                        <p className="text-sm text-brand-muted mt-1">{item.summary}</p>
+                                    </div>
+                                )) : <p className="text-brand-muted text-center py-5">No recent news found for {selectedCountry.name.common}.</p>}
+                            </div>
+                        )}
+
+                    </div>
+                )}
+            </div>
+        </PageLayout>
+    );
+};
+
+
 export default function App() {
   return (
     <AppProvider>
@@ -1342,6 +1599,11 @@ export default function App() {
           <Route path="/translate" element={
             <ProtectedRoute>
               <TranslatePage />
+            </ProtectedRoute>
+          } />
+          <Route path="/safety" element={
+            <ProtectedRoute>
+              <SafetyPage />
             </ProtectedRoute>
           } />
           <Route path="/profile" element={<ProfilePage />} />
