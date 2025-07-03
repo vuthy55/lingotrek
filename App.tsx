@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, createContext, useContext, useMemo } from 'react';
 import { HashRouter, Routes, Route, Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import type { Language, LanguageCode, User, Word, LearntWord, LearntPhrase, Payment, AppContextType, EmergencyContact, OtherNumber, CountryInfo, NewsItem } from './types';
@@ -235,8 +236,6 @@ const useSpeech = () => {
   return { isListening, transcript, listen, setTranscript };
 };
 
-const ASEAN_LANG_CODES_NO_TTS: LanguageCode[] = ['ID', 'KM', 'LO', 'MY', 'TH', 'VI'];
-
 const useTextToSpeech = () => {
     const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([]);
 
@@ -276,22 +275,12 @@ const useTextToSpeech = () => {
     }, [voices]);
 
     const isVoiceAvailable = useCallback((lang: string) => {
-        const langCode = Object.values(LANGUAGES).find(l => l.speechLang === lang)?.code;
-        if (langCode && ASEAN_LANG_CODES_NO_TTS.includes(langCode)) {
-            return false;
-        }
         return !!findVoice(lang);
     }, [findVoice]);
 
     const speakWithVoice = useCallback((text: string, lang: string) => {
         if (!text || typeof window.speechSynthesis === 'undefined') return null;
         
-        const langCode = Object.values(LANGUAGES).find(l => l.speechLang === lang)?.code;
-        if (langCode && ASEAN_LANG_CODES_NO_TTS.includes(langCode)) {
-             console.warn(`Speech synthesis is disabled for ${lang}`);
-            return null;
-        }
-
         const utterance = new SpeechSynthesisUtterance(text);
         const voice = findVoice(lang);
         
@@ -461,15 +450,12 @@ const BottomNavBar = () => {
     const navigate = useNavigate();
 
     const handleEmergencyCall = () => {
-        const firstContact = emergencyContacts.find(c => c.phone.trim() !== '');
+        const firstContact = emergencyContacts.find(c => c.phone && c.phone.trim() !== '');
         if (firstContact) {
-            if (window.confirm(`This will call your emergency contact: ${firstContact.name} (${firstContact.phone}). Do you want to proceed?`)) {
-                window.location.href = `tel:${firstContact.phone}`;
-            }
+            window.location.href = `tel:${firstContact.phone}`;
         } else {
-            if (window.confirm('You have no emergency contacts set up. Go to the Safety page to add one?')) {
-                navigate('/safety');
-            }
+            alert('No emergency contact number is set. Please add one on the Safety page.');
+            navigate('/safety');
         }
     };
     
@@ -492,7 +478,7 @@ const BottomNavBar = () => {
                         <TelephoneIcon className="h-7 w-7"/>
                         <div className="absolute top-0 right-0 -mr-1 -mt-1 w-3 h-3 rounded-full bg-red-500 animate-pulse"></div>
                     </div>
-                    <span className="text-xs mt-1">Call ICE</span>
+                    <span className="text-xs mt-1">Call Emergency</span>
                  </button>
             </div>
         </div>
@@ -510,6 +496,54 @@ const ProtectedRoute: React.FC<{ children: React.ReactElement }> = ({ children }
 
     return children;
 };
+
+const BackgroundSlider = () => {
+    const [images, setImages] = useState<string[]>([]);
+    const [currentIndex, setCurrentIndex] = useState(0);
+
+    useEffect(() => {
+        const defaultImages = [
+            'https://images.unsplash.com/photo-1528181304800-259b08848526?q=80&w=2070&auto=format&fit=crop', // Angkor Wat
+            'https://images.unsplash.com/photo-1593022815472-3b6d05a46a62?q=80&w=1974&auto=format&fit=crop', // Da Nang, Vietnam
+            'https://images.unsplash.com/photo-1534313833449-3F2046e04f14?q=80&w=2070&auto=format&fit=crop', // Rice Paddies
+            'https://images.unsplash.com/photo-1500930287589-c49a38958257?q=80&w=1961&auto=format&fit=crop', // Waterfall
+            'https://images.unsplash.com/photo-1548982492-77439e6a923a?q=80&w=1974&auto=format&fit=crop', // Thai Temple
+        ];
+        try {
+            const saved = localStorage.getItem('lingotrek-background-images');
+            const savedImages = saved ? JSON.parse(saved) : [];
+            const validSavedImages = savedImages.filter((img: string) => img && img.startsWith('http'));
+            setImages(validSavedImages.length > 0 ? validSavedImages : defaultImages);
+        } catch (e) {
+            setImages(defaultImages);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (images.length > 1) {
+            const timer = setInterval(() => {
+                setCurrentIndex(prevIndex => (prevIndex + 1) % images.length);
+            }, 7000); // Change image every 7 seconds
+            return () => clearInterval(timer);
+        }
+    }, [images.length]);
+
+    return (
+        <div className="fixed inset-0 -z-10">
+            {images.map((img, index) => (
+                <div
+                    key={index}
+                    className="absolute inset-0 bg-cover bg-center transition-opacity duration-1000 ease-in-out"
+                    style={{ 
+                        backgroundImage: `linear-gradient(rgba(15, 23, 42, 0.8), rgba(15, 23, 42, 1)), url(${img})`,
+                        opacity: index === currentIndex ? 1 : 0 
+                    }}
+                />
+            ))}
+        </div>
+    );
+};
+
 
 const MainPage = () => {
     const { fromLang, toLang, setFromLang, setToLang } = useAppContext();
@@ -531,8 +565,9 @@ const MainPage = () => {
 
     return (
         <>
+        <BackgroundSlider />
         <PageLayout title="" showControls={false}>
-            <div className="flex flex-col items-center justify-center min-h-screen text-center p-4">
+            <div className="flex flex-col items-center justify-center min-h-screen text-center p-4 relative z-10">
                 <header className="flex items-center space-x-3 mb-8">
                     <LogoIcon />
                     <h1 className="text-4xl font-extrabold tracking-tight text-brand-light">LingoTrek</h1>
@@ -611,7 +646,8 @@ const LearnPage = () => {
                     </div>
                     <BookIcon />
                 </button>
-                 <Link to="/dictionary" className="w-full text-left p-6 bg-brand-dark rounded-xl hover:bg-brand-primary/20 transition-colors duration-200 flex items-center justify-between">
+                 <Link to="/dictionary" className="w-full text-left p-6 bg-brand-dark rounded-xl hover:bg-brand-primary/20 transition-colors duration-200 flex items-center justify-between"
+                  >
                     <div>
                         <h3 className="text-xl font-bold">Dictionary</h3>
                         <p className="text-brand-muted">Search for words.</p>
@@ -831,7 +867,7 @@ const VocabularyPage: React.FC<{onBack: () => void}> = ({onBack}) => {
                            </button>
                         </div>
                          {generatedStory && (
-                            <div className="mt-4">
+                            <div className="mt-4 animate-fade-in">
                                 <h4 className="text-lg font-bold mb-2 text-brand-light">Your story:</h4>
                                 <PracticeItem 
                                     item={generatedStory.phrase}
@@ -860,7 +896,7 @@ const TranslatePage = () => {
     const [topText, setTopText] = useState('');
     const [bottomText, setBottomText] = useState('');
     const [isTranslating, setIsTranslating] = useState(false);
-    const [activeInput, setActiveInput] = useState<'top' | 'bottom' | null>(null);
+    const [activeInput, setActiveInput] = useState<'top' | 'bottom'>('top');
 
     const { isListening: isTopListening, transcript: topTranscript, listen: topListen, setTranscript: setTopTranscript } = useSpeech();
     const { isListening: isBottomListening, transcript: bottomTranscript, listen: bottomListen, setTranscript: setBottomTranscript } = useSpeech();
@@ -882,41 +918,40 @@ const TranslatePage = () => {
         }
     }, [bottomTranscript, setBottomTranscript]);
 
-    const handleTranslate = useCallback(async (text: string, sourceLang: LanguageCode, targetLang: LanguageCode, setText: (text:string) => void, speakResult: boolean) => {
-        if (!text.trim()) {
-            setText('');
+    const handleTranslate = useCallback(async () => {
+        if (isTranslating) return;
+        
+        let textToTranslate = '';
+        let sourceLang: LanguageCode;
+        let targetLang: LanguageCode;
+        let setTargetText: (text: string) => void;
+
+        if (activeInput === 'top') {
+            textToTranslate = topText;
+            sourceLang = fromLang;
+            targetLang = toLang;
+            setTargetText = setBottomText;
+        } else {
+            textToTranslate = bottomText;
+            sourceLang = toLang;
+            targetLang = fromLang;
+            setTargetText = setTopText;
+        }
+        
+        if (!textToTranslate.trim()) {
+            setTargetText('');
             return;
         };
+        
         setIsTranslating(true);
-        const translated = await translateText(text, sourceLang, targetLang);
-        setText(translated);
-        if(speakResult && isVoiceAvailable(LANGUAGES[targetLang].speechLang)) {
+        const translated = await translateText(textToTranslate, sourceLang, targetLang);
+        setTargetText(translated);
+        if (isVoiceAvailable(LANGUAGES[targetLang].speechLang)) {
             speak(translated, LANGUAGES[targetLang].speechLang);
         }
         setIsTranslating(false);
-    }, [speak, isVoiceAvailable]);
+    }, [isTranslating, activeInput, topText, bottomText, fromLang, toLang, speak, isVoiceAvailable]);
 
-    useEffect(() => {
-        if (activeInput !== 'top' || !topText) {
-             if(activeInput === 'top' && !topText) setBottomText('');
-            return;
-        }
-        const debounce = setTimeout(() => {
-            handleTranslate(topText, fromLang, toLang, setBottomText, true);
-        }, 1000);
-        return () => clearTimeout(debounce);
-    }, [topText, fromLang, toLang, handleTranslate, activeInput]);
-    
-    useEffect(() => {
-         if (activeInput !== 'bottom' || !bottomText) {
-            if(activeInput === 'bottom' && !bottomText) setTopText('');
-            return;
-        }
-        const debounce = setTimeout(() => {
-            handleTranslate(bottomText, toLang, fromLang, setTopText, true);
-        }, 1000);
-        return () => clearTimeout(debounce);
-    }, [bottomText, fromLang, toLang, handleTranslate, activeInput]);
 
     const TranslationCard: React.FC<{
         langCode: LanguageCode;
@@ -935,7 +970,6 @@ const TranslatePage = () => {
                     value={text}
                     onChange={(e) => {
                         setText(e.target.value);
-                        onFocus();
                     }}
                     onFocus={onFocus}
                     className="flex-grow bg-transparent text-brand-light text-lg w-full resize-none focus:outline-none"
@@ -965,10 +999,15 @@ const TranslatePage = () => {
                     onFocus={() => setActiveInput('top')}
                 />
                  <div className="flex justify-center">
-                    <button className="p-2 bg-brand-dark rounded-full" aria-label="Translation status">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={`w-6 h-6 text-brand-accent transition-transform duration-300 ${isTranslating ? 'animate-spin' : ''}`}>
+                    <button onClick={handleTranslate} className="p-3 bg-brand-primary hover:bg-brand-secondary rounded-full text-white font-bold flex items-center space-x-2 shadow-lg" aria-label="Translate">
+                        {isTranslating ? (
+                            <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-6 h-6">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0011.667 0l3.181-3.183m-11.667 0a8.25 8.25 0 0111.667 0l3.181 3.183M2.985 19.644l3.181-3.183m0 0a8.25 8.25 0 0111.667 0l3.181 3.183" />
-                        </svg>
+                            </svg>
+                        )}
+                        <span>Translate</span>
                     </button>
                 </div>
                 <TranslationCard
@@ -1183,19 +1222,34 @@ const ProfilePage = () => {
     const [formData, setFormData] = useState({ email: '', name: '', mobile: '', country: '' });
     const [payments, setPayments] = useState<Payment[]>([]);
     const [adminSettings, setAdminSettings] = useState(() => {
-        const saved = localStorage.getItem('lingotrek-admin-settings');
-        return saved ? JSON.parse(saved) : { paypal: '', stripe: '', donationAmount: 5 };
+        try {
+            const saved = localStorage.getItem('lingotrek-admin-settings');
+            return saved ? JSON.parse(saved) : { paypal: '', stripe: '', donationAmount: 5 };
+        } catch(e) { return { paypal: '', stripe: '', donationAmount: 5 }; }
+    });
+     const [backgroundImages, setBackgroundImages] = useState(() => {
+        try {
+            const saved = localStorage.getItem('lingotrek-background-images');
+            const parsed = saved ? JSON.parse(saved) : [];
+            // Ensure it's an array of 5 strings
+            const fullArray = Array.from({length: 5}, (_, i) => parsed[i] || '');
+            return fullArray;
+        } catch(e) { return Array(5).fill(''); }
     });
     const [allUsers, setAllUsers] = useState<User[]>([]);
     
     useEffect(() => {
         if(user) {
-            const savedPayments = localStorage.getItem('lingotrek-payments');
-            if (savedPayments) setPayments(JSON.parse(savedPayments));
+            try {
+                const savedPayments = localStorage.getItem('lingotrek-payments');
+                if (savedPayments) setPayments(JSON.parse(savedPayments));
+            } catch (e) { console.error("Could not parse payments", e); }
 
             if(user.email === ADMIN_EMAIL){
-                const savedUsers = localStorage.getItem('lingotrek-all-users');
-                if(savedUsers) setAllUsers(JSON.parse(savedUsers));
+                try {
+                    const savedUsers = localStorage.getItem('lingotrek-all-users');
+                    if(savedUsers) setAllUsers(JSON.parse(savedUsers));
+                } catch(e) { console.error("Could not parse all users", e); }
             }
         }
     }, [user]);
@@ -1206,7 +1260,6 @@ const ProfilePage = () => {
         const newUser = { ...formData };
         login(newUser);
 
-        // Save user for admin view (for demo purposes)
         try {
             const allUsersStr = localStorage.getItem('lingotrek-all-users');
             const currentUsers = allUsersStr ? JSON.parse(allUsersStr) : [];
@@ -1225,13 +1278,21 @@ const ProfilePage = () => {
         const newPayment: Payment = { date: new Date().toISOString().split('T')[0], amount: adminSettings.donationAmount, method };
         const updatedPayments = [...payments, newPayment];
         setPayments(updatedPayments);
-        localStorage.setItem('lingotrek-payments', JSON.stringify(updatedPayments));
+        try {
+            localStorage.setItem('lingotrek-payments', JSON.stringify(updatedPayments));
+        } catch(e) { console.error("Could not save payments", e); }
         alert('Thank you for your donation!');
     };
 
     const handleAdminSave = () => {
-        localStorage.setItem('lingotrek-admin-settings', JSON.stringify(adminSettings));
-        alert('Admin settings saved!');
+        try {
+            localStorage.setItem('lingotrek-admin-settings', JSON.stringify(adminSettings));
+            localStorage.setItem('lingotrek-background-images', JSON.stringify(backgroundImages.filter(img => img.trim() !== '')));
+            alert('Admin settings saved!');
+        } catch(e) {
+            alert('Failed to save settings.');
+            console.error("Could not save admin settings", e);
+        }
     };
 
     if (!user) {
@@ -1302,9 +1363,30 @@ const ProfilePage = () => {
                                     <label htmlFor="donationAmount" className="text-brand-muted">Donation Amount: $</label>
                                     <input id="donationAmount" type="number" value={adminSettings.donationAmount} onChange={e => setAdminSettings({...adminSettings, donationAmount: Number(e.target.value) || 0})} className="p-2 bg-slate-900 rounded-lg focus:ring-2 focus:ring-brand-accent focus:outline-none w-24" />
                                 </div>
-                                <button onClick={handleAdminSave} className="w-full bg-brand-accent hover:bg-amber-300 text-brand-darker font-bold py-2 px-4 rounded-lg">Save Settings</button>
                             </div>
                         </div>
+
+                         <div>
+                            <h4 className="text-lg font-bold mb-2">Homepage Background Images</h4>
+                            <div className="space-y-2">
+                                {backgroundImages.map((url, index) => (
+                                     <input 
+                                        key={index} 
+                                        type="url"
+                                        placeholder={`Image URL ${index + 1}`}
+                                        value={url} 
+                                        onChange={e => {
+                                            const newImages = [...backgroundImages];
+                                            newImages[index] = e.target.value;
+                                            setBackgroundImages(newImages);
+                                        }}
+                                        className="w-full p-3 bg-slate-900 rounded-lg focus:ring-2 focus:ring-brand-accent focus:outline-none"
+                                    />
+                                ))}
+                            </div>
+                        </div>
+
+                        <button onClick={handleAdminSave} className="w-full bg-brand-accent hover:bg-amber-300 text-brand-darker font-bold py-2 px-4 rounded-lg">Save All Admin Settings</button>
 
                         <div>
                             <h4 className="text-lg font-bold mb-2">Registered Users ({allUsers.length})</h4>
@@ -1333,21 +1415,46 @@ const ProfilePage = () => {
 };
 
 const DictionaryPage = () => {
-    const { fromLang, toLang } = useAppContext();
+    const { fromLang, toLang, updateLearntWord } = useAppContext();
     const [searchTerm, setSearchTerm] = useState('');
     const [results, setResults] = useState<Word[]>([]);
     const [phonetics, setPhonetics] = useState<Record<string, string>>({});
     const [isLoading, setIsLoading] = useState(false);
+    const [practicingWord, setPracticingWord] = useState<Word | null>(null);
+    const [practiceFeedback, setPracticeFeedback] = useState<Record<string, 'correct' | 'incorrect'>>({});
     
     const { speak, isVoiceAvailable } = useTextToSpeech();
     const { isListening, transcript, listen, setTranscript } = useSpeech();
 
     useEffect(() => {
-        if (transcript) {
+        if (transcript && !practicingWord) {
             setSearchTerm(transcript);
             setTranscript('');
         }
-    }, [transcript, setTranscript]);
+    }, [transcript, practicingWord, setTranscript]);
+    
+     useEffect(() => {
+        if (!transcript || !practicingWord) return;
+
+        const expectedText = practicingWord[toLang].toLowerCase().trim().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
+        const spokenText = transcript.toLowerCase().trim().replace(/[.,/#!$%^&*;:{}=\-_`~()]/g,"");
+        const isCorrect = spokenText === expectedText;
+        
+        updateLearntWord(practicingWord, fromLang, toLang, isCorrect);
+        setPracticeFeedback(prev => ({ ...prev, [practicingWord.EN]: isCorrect ? 'correct' : 'incorrect' }));
+
+        setTimeout(() => {
+            setPracticeFeedback(prev => {
+                const newState = {...prev};
+                delete newState[practicingWord.EN];
+                return newState;
+            });
+        }, 2000);
+        
+        setTranscript('');
+        setPracticingWord(null);
+    }, [transcript, practicingWord, toLang, fromLang, updateLearntWord, setTranscript]);
+
 
     useEffect(() => {
         if (!searchTerm.trim()) {
@@ -1365,7 +1472,7 @@ const DictionaryPage = () => {
         setResults(filtered);
 
         const fetchPhonetics = async () => {
-            const newPhoneticsToFetch = filtered.filter(word => !phonetics[word.EN]);
+            const newPhoneticsToFetch = filtered.filter(word => !phonetics[word.EN] && word[toLang]);
             if (newPhoneticsToFetch.length === 0) {
                 setIsLoading(false);
                 return;
@@ -1385,6 +1492,11 @@ const DictionaryPage = () => {
 
     }, [searchTerm, fromLang, toLang]);
 
+    const handleListen = (word: Word) => {
+        setPracticingWord(word);
+        listen(LANGUAGES[toLang].speechLang);
+    };
+
     return (
         <PageLayout title="Dictionary">
             <div className="relative">
@@ -1399,7 +1511,7 @@ const DictionaryPage = () => {
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 text-brand-muted"><path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" /></svg>
                 </div>
                  <div className="absolute inset-y-0 right-0 pr-3 flex items-center">
-                    <button onClick={() => listen(LANGUAGES[fromLang].speechLang)} className={`p-2 rounded-full ${isListening ? 'bg-red-500/50 animate-pulse' : 'hover:bg-brand-primary/20'}`}>
+                    <button onClick={() => listen(LANGUAGES[fromLang].speechLang)} className={`p-2 rounded-full ${isListening && !practicingWord ? 'bg-red-500/50 animate-pulse' : 'hover:bg-brand-primary/20'}`}>
                         <MicIcon />
                     </button>
                 </div>
@@ -1415,8 +1527,13 @@ const DictionaryPage = () => {
                             <p className="text-sm text-brand-muted">{word[fromLang]}</p>
                         </div>
                         <div className="flex items-center space-x-2">
-                             <button onClick={() => speak(word[toLang], LANGUAGES[toLang].speechLang)} className="p-2 rounded-full hover:bg-brand-primary/20 disabled:text-slate-500 disabled:cursor-not-allowed" disabled={!isVoiceAvailable(LANGUAGES[toLang].speechLang)}>
+                            {practiceFeedback[word.EN] === 'correct' && <CheckCircleIcon className="text-green-500" />}
+                            {practiceFeedback[word.EN] === 'incorrect' && <XCircleIcon className="text-red-500" />}
+                            <button onClick={() => speak(word[toLang], LANGUAGES[toLang].speechLang)} className="p-2 rounded-full hover:bg-brand-primary/20 disabled:text-slate-500 disabled:cursor-not-allowed" disabled={!isVoiceAvailable(LANGUAGES[toLang].speechLang)}>
                                 <SpeakerIcon />
+                            </button>
+                            <button onClick={() => handleListen(word)} className={`p-2 rounded-full hover:bg-brand-primary/20 ${isListening && practicingWord?.EN === word.EN ? 'bg-red-500/50 animate-pulse' : ''}`}>
+                                <MicIcon />
                             </button>
                         </div>
                     </div>
@@ -1436,7 +1553,7 @@ const SafetyPage = () => {
     const [activeTab, setActiveTab] = useState<'emergency' | 'news'>('emergency');
     
     const [emergencyInfo, setEmergencyInfo] = useState<CountryInfo | null>(null);
-    const [news, setNews] = useState<NewsItem[] | null>(null);
+    const [newsData, setNewsData] = useState<{ news: NewsItem[], sources: any[] } | null>(null);
     const [isLoading, setIsLoading] = useState(false);
 
     useEffect(() => {
@@ -1455,7 +1572,7 @@ const SafetyPage = () => {
         const fetchInfo = async () => {
             setIsLoading(true);
             setEmergencyInfo(null);
-            setNews(null);
+            setNewsData(null);
             
             const [info, newsItems] = await Promise.all([
                 getEmergencyInfo(selectedCountry.name.common),
@@ -1463,7 +1580,7 @@ const SafetyPage = () => {
             ]);
 
             setEmergencyInfo(info);
-            setNews(newsItems);
+            setNewsData(newsItems);
             setIsLoading(false);
         };
         fetchInfo();
@@ -1563,12 +1680,30 @@ const SafetyPage = () => {
                         
                          {activeTab === 'news' && (
                              <div className="space-y-4 animate-fade-in">
-                                {news && news.length > 0 ? news.map((item, i) => (
-                                    <div key={i} className="bg-brand-dark p-4 rounded-xl">
-                                        <h4 className="font-bold text-brand-light">{item.headline}</h4>
-                                        <p className="text-sm text-brand-muted mt-1">{item.summary}</p>
-                                    </div>
-                                )) : <p className="text-brand-muted text-center py-5">No recent news found for {selectedCountry.name.common}.</p>}
+                                {newsData && newsData.news.length > 0 ? (
+                                    <>
+                                        {newsData.news.map((item, i) => (
+                                            <div key={i} className="bg-brand-dark p-4 rounded-xl">
+                                                <h4 className="font-bold text-brand-light">{item.headline}</h4>
+                                                <p className="text-sm text-brand-muted mt-1">{item.summary}</p>
+                                            </div>
+                                        ))}
+                                        {newsData.sources.length > 0 && (
+                                            <div className="bg-brand-dark p-4 rounded-xl">
+                                                <h4 className="font-bold text-brand-light mb-2">Sources</h4>
+                                                <ul className="list-disc list-inside space-y-1">
+                                                    {newsData.sources.map((source, i) => (
+                                                        <li key={i} className="text-sm text-brand-muted">
+                                                            <a href={source.web.uri} target="_blank" rel="noopener noreferrer" className="text-brand-accent hover:underline break-all">
+                                                                {source.web.title || source.web.uri}
+                                                            </a>
+                                                        </li>
+                                                    ))}
+                                                </ul>
+                                            </div>
+                                        )}
+                                    </>
+                                ) : <p className="text-brand-muted text-center py-5">No recent news found for {selectedCountry.name.common}.</p>}
                             </div>
                         )}
 
@@ -1580,7 +1715,7 @@ const SafetyPage = () => {
 };
 
 
-export default function App() {
+export function App() {
   return (
     <AppProvider>
       <HashRouter>
